@@ -1,0 +1,35 @@
+#:kivy 2.0
+
+BoxLayout:
+    orientation: "vertical"
+    padding: 10
+    spacing: 10
+
+    # Messages display area
+    ScrollView:
+        size_hint_y: 0.85
+        
+        Label:
+            id: messages
+            text: "Welcome to AuraLink\n"
+            size_hint_y: None
+            height: self.texture_size[1]
+            text_size: self.width, None
+            markup: True
+            valign: "top"
+
+    # Input area
+    BoxLayout:
+        size_hint_y: 0.15
+        spacing: 10
+        
+        TextInput:
+            id: input_box
+            multiline: False
+            hint_text: "Enter message..."
+            size_hint_x: 0.85
+        
+        Button:
+            text: "Send"
+            size_hint_x: 0.15
+            on_press: app.send_chat()
