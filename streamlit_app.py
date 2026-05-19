@@ -1,49 +1,42 @@
-"""AuraLink - Communication without barriers. Streamlit Web Interface"""
-
+"""AuraLink - Communication without barriers"""
 import streamlit as st
-import asyncio
 import json
 import os
 from datetime import datetime
-from typing import List, Dict, Any
-import logging
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# Page configuration
+# Page config
 st.set_page_config(
-    page_title="AuraLink - Secure Messaging",
+    page_title="AuraLink - Secure Chat",
     page_icon="🔐",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS
+# Custom styling
 st.markdown("""
-    <style>
+<style>
     .main-header {
         font-size: 2.5rem;
         color: #1f77b4;
         text-align: center;
-        margin-bottom: 2rem;
         font-weight: bold;
+        margin-bottom: 1rem;
     }
-    .message-box {
+    .message-user {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 20px;
+        padding: 15px;
         border-radius: 10px;
         color: white;
-        margin: 10px 0;
-        word-wrap: break-word;
+        margin: 8px 0;
+        border-left: 4px solid #667eea;
     }
-    .peer-message {
+    .message-peer {
         background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-    }
-    .system-message {
-        background: #FFA500;
+        padding: 15px;
+        border-radius: 10px;
         color: white;
+        margin: 8px 0;
+        border-left: 4px solid #f5576c;
     }
     .status-online {
         color: #2ecc71;
@@ -53,92 +46,82 @@ st.markdown("""
         color: #e74c3c;
         font-weight: bold;
     }
-    </style>
+</style>
 """, unsafe_allow_html=True)
 
-# Session state initialization
+# Initialize session state
 if "messages" not in st.session_state:
     st.session_state.messages = []
 if "connected" not in st.session_state:
     st.session_state.connected = False
 if "encryption_enabled" not in st.session_state:
     st.session_state.encryption_enabled = True
-if "pending_messages" not in st.session_state:
-    st.session_state.pending_messages = []
 
-# Utility functions
-def load_message_history(filename: str = "chat_history.json") -> List[Dict[str, Any]]:
-    """Load chat history from file."""
-    if os.path.exists(filename):
-        with open(filename, "r") as f:
+# File functions
+def load_messages():
+    """Load messages from file"""
+    if os.path.exists("messages.json"):
+        with open("messages.json", "r") as f:
             return json.load(f)
     return []
 
-def save_message_to_file(sender: str, content: str, status: str = "sent"):
-    """Save message to chat history file."""
-    filename = "chat_history.json"
-    history = load_message_history(filename)
-    
+def save_message(sender, content, msg_type="text"):
+    """Save message to file"""
+    messages = load_messages()
     message = {
         "sender": sender,
         "content": content,
-        "timestamp": datetime.now().isoformat(),
-        "status": status
+        "type": msg_type,
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     }
-    
-    history.append(message)
-    
-    with open(filename, "w") as f:
-        json.dump(history, f, indent=2)
+    messages.append(message)
+    with open("messages.json", "w") as f:
+        json.dump(messages, f, indent=2)
 
-def clear_chat_history(filename: str = "chat_history.json"):
-    """Clear chat history."""
-    if os.path.exists(filename):
-        os.remove(filename)
+def clear_messages():
+    """Clear all messages"""
+    if os.path.exists("messages.json"):
+        os.remove("messages.json")
     st.session_state.messages = []
 
-# Sidebar configuration
-st.sidebar.title("⚙️ AuraLink Settings")
-
+# Sidebar
 with st.sidebar:
-    st.subheader("👤 User Configuration")
-    username = st.text_input("Your Name", value="Me", key="username")
+    st.title("⚙️ Settings")
+    
+    st.subheader("👤 User Info")
+    username = st.text_input("Your Name", value="You", key="username")
     peer_name = st.text_input("Peer Name", value="Friend", key="peer_name")
     
     st.divider()
-    st.subheader("🔗 Connection Settings")
-    server_url = st.text_input("Server URL", value="ws://127.0.0.1:8765", key="server")
-    port = st.number_input("Port", value=8765, key="port")
+    
+    st.subheader("🔗 Connection")
+    server_url = st.text_input("Server URL", value="ws://127.0.0.1:8765")
+    port = st.number_input("Port", value=8765, min_value=1024, max_value=65535)
     
     st.divider()
+    
     st.subheader("🔒 Security")
-    st.session_state.encryption_enabled = st.checkbox(
-        "Enable End-to-End Encryption",
-        value=st.session_state.encryption_enabled
-    )
-    
+    st.session_state.encryption_enabled = st.checkbox("Enable E2E Encryption", value=True)
     if st.session_state.encryption_enabled:
-        st.info("✅ E2E Encryption: Active")
+        st.success("✅ Encryption: Active")
     else:
-        st.warning("⚠️ E2E Encryption: Disabled")
+        st.warning("⚠️ Encryption: Disabled")
     
     st.divider()
-    st.subheader("🎛️ Connection Control")
     
+    st.subheader("🎛️ Control")
     col1, col2 = st.columns(2)
     with col1:
         if st.button("🔌 Connect", use_container_width=True):
             st.session_state.connected = True
-            st.success("✅ Connected to server!")
-    
+            st.success("✅ Connected!")
     with col2:
         if st.button("🔌 Disconnect", use_container_width=True):
             st.session_state.connected = False
-            st.info("❌ Disconnected from server")
+            st.info("Disconnected")
     
     st.divider()
     
-    # Connection status
     if st.session_state.connected:
         st.markdown('<p class="status-online">🟢 Online</p>', unsafe_allow_html=True)
     else:
@@ -146,114 +129,100 @@ with st.sidebar:
 
 # Main content
 st.markdown('<h1 class="main-header">🔐 AuraLink</h1>', unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; color: #666;'><i>Communication without barriers</i></p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: #666;'><i>Secure Communication without Barriers</i></p>", unsafe_allow_html=True)
 
-# Create tabs for different features
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["💬 Chat", "📎 Files", "📞 Voice", "📹 Video", "🔑 Security"])
+# Tabs
+tab1, tab2, tab3, tab4 = st.tabs(["💬 Chat", "📎 Files", "📞 Voice", "🔑 Security"])
 
 # Tab 1: Chat
 with tab1:
     st.subheader("💬 Message History")
     
-    # Load and display message history
-    history = load_message_history()
+    messages = load_messages()
     
-    if history:
-        for msg in history:
+    if messages:
+        for msg in messages:
             if msg["sender"] == username:
                 st.markdown(f"""
-                    <div class="message-box">
-                        <b>{msg['sender']}:</b> {msg['content']}<br/>
-                        <small>{msg['timestamp']}</small>
-                    </div>
+                <div class="message-user">
+                    <b>{msg['sender']}</b><br/>
+                    {msg['content']}<br/>
+                    <small>{msg['timestamp']}</small>
+                </div>
                 """, unsafe_allow_html=True)
             else:
                 st.markdown(f"""
-                    <div class="message-box peer-message">
-                        <b>{msg['sender']}:</b> {msg['content']}<br/>
-                        <small>{msg['timestamp']}</small>
-                    </div>
+                <div class="message-peer">
+                    <b>{msg['sender']}</b><br/>
+                    {msg['content']}<br/>
+                    <small>{msg['timestamp']}</small>
+                </div>
                 """, unsafe_allow_html=True)
     else:
-        st.info("No messages yet. Start a conversation!")
+        st.info("📭 No messages yet. Start a conversation!")
     
     st.divider()
     
-    # Message input
     st.subheader("✉️ Send Message")
-    
-    col1, col2 = st.columns([5, 1])
+    col1, col2 = st.columns([4, 1])
     
     with col1:
-        message_input = st.text_area("Type your message:", height=80, placeholder="Share your thoughts...")
+        message_text = st.text_area("Type a message", height=80, placeholder="Share your thoughts...")
     
     with col2:
         st.write("")
         st.write("")
-        send_button = st.button("📤 Send", use_container_width=True)
+        send_btn = st.button("📤 Send", use_container_width=True, key="send_msg")
     
-    if send_button and message_input.strip():
-        # Save and display message
-        save_message_to_file(username, message_input, "sent")
-        
+    if send_btn and message_text.strip():
+        save_message(username, message_text, "text")
         if st.session_state.connected:
             st.success("✅ Message sent!")
         else:
-            st.warning("⚠️ Offline - Message queued for sending")
-            st.session_state.pending_messages.append({
-                "sender": username,
-                "content": message_input,
-                "status": "queued"
-            })
-        
+            st.warning("⚠️ Offline - queued for sending")
         st.rerun()
     
     st.divider()
     
-    # Chat controls
     col1, col2, col3 = st.columns(3)
-    
     with col1:
-        if st.button("🗑️ Clear History", use_container_width=True):
-            clear_chat_history()
-            st.success("Chat history cleared!")
+        if st.button("🗑️ Clear", use_container_width=True, key="clear_msgs"):
+            clear_messages()
+            st.success("✅ Cleared!")
             st.rerun()
-    
     with col2:
-        if st.button("📥 Load History", use_container_width=True):
+        if st.button("🔄 Refresh", use_container_width=True, key="refresh_msgs"):
             st.rerun()
-    
     with col3:
-        if st.button("📊 Export Chat", use_container_width=True):
-            history_data = load_message_history()
+        if st.button("📊 Export", use_container_width=True, key="export_msgs"):
+            data = load_messages()
             st.download_button(
-                label="Download as JSON",
-                data=json.dumps(history_data, indent=2),
-                file_name="auralink_chat_history.json",
+                label="Download JSON",
+                data=json.dumps(data, indent=2),
+                file_name="auralink_chat.json",
                 mime="application/json"
             )
 
-# Tab 2: File Transfer
+# Tab 2: Files
 with tab2:
     st.subheader("📎 File Transfer")
     
-    uploaded_file = st.file_uploader("Choose a file to send", accept_multiple_files=False)
+    uploaded = st.file_uploader("Choose file to send", accept_multiple_files=False)
     
-    if uploaded_file is not None:
-        st.info(f"📄 File: {uploaded_file.name} | Size: {uploaded_file.size / 1024:.2f} KB")
-        
-        if st.button("📤 Send File"):
+    if uploaded:
+        st.info(f"📄 {uploaded.name} | {uploaded.size / 1024:.1f} KB")
+        if st.button("📤 Send File", use_container_width=True):
             if st.session_state.connected:
-                st.success(f"✅ File '{uploaded_file.name}' sent successfully!")
-                save_message_to_file(username, f"[FILE: {uploaded_file.name}]", "sent")
+                save_message(username, f"[FILE: {uploaded.name}]", "file")
+                st.success(f"✅ File sent!")
             else:
-                st.warning("⚠️ Cannot send file while offline")
+                st.error("❌ Cannot send while offline")
     
     st.divider()
-    st.write("**Received Files:**")
+    st.write("**📥 Received Files:**")
     st.info("No files received yet")
 
-# Tab 3: Voice Call
+# Tab 3: Voice
 with tab3:
     st.subheader("📞 Voice Communication")
     
@@ -264,65 +233,29 @@ with tab3:
             if st.session_state.connected:
                 st.success("📞 Calling...")
             else:
-                st.error("❌ Cannot call while offline")
+                st.error("❌ Offline")
     
     with col2:
         if st.button("⏸️ Hold", use_container_width=True):
-            st.info("Call on hold")
+            st.info("📞 On hold")
     
     with col3:
-        if st.button("❌ End Call", use_container_width=True):
-            st.info("Call ended")
+        if st.button("❌ End", use_container_width=True):
+            st.info("📞 Call ended")
     
     st.divider()
-    st.write("**Audio Settings:**")
+    st.write("**🎙️ Audio Settings:**")
     
     col1, col2 = st.columns(2)
-    
     with col1:
-        microphone = st.selectbox("Microphone", ["Default Microphone", "USB Headset", "Built-in"])
-    
+        mic = st.selectbox("Microphone", ["Default", "USB", "Built-in"])
     with col2:
-        speaker = st.selectbox("Speaker", ["Default Speaker", "Headphones", "Built-in"])
+        speaker = st.selectbox("Speaker", ["Default", "Headphones", "Built-in"])
     
-    st.slider("Volume", 0, 100, 70)
+    volume = st.slider("Volume", 0, 100, 75)
 
-# Tab 4: Video Call
+# Tab 4: Security
 with tab4:
-    st.subheader("📹 Video Communication")
-    
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        if st.button("📹 Start Video Call", use_container_width=True):
-            if st.session_state.connected:
-                st.success("📹 Video call initiated...")
-            else:
-                st.error("❌ Cannot start video call while offline")
-    
-    with col2:
-        if st.button("🎥 Mute Camera", use_container_width=True):
-            st.info("Camera muted")
-    
-    with col3:
-        if st.button("❌ End Video", use_container_width=True):
-            st.info("Video call ended")
-    
-    st.divider()
-    st.write("**Video Settings:**")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        camera = st.selectbox("Camera", ["Default Camera", "USB Camera", "Built-in"])
-        quality = st.select_slider("Video Quality", options=["Low", "Medium", "High", "Ultra HD"])
-    
-    with col2:
-        st.checkbox("Enable Screen Share")
-        st.checkbox("Auto-focus")
-
-# Tab 5: Security & Encryption
-with tab5:
     st.subheader("🔒 Security & Encryption")
     
     col1, col2 = st.columns(2)
@@ -334,50 +267,51 @@ with tab5:
         else:
             st.warning("⚠️ E2E Encryption: DISABLED")
         
-        if st.button("🔄 Regenerate Keys"):
-            st.success("✅ New encryption keys generated!")
+        if st.button("🔄 Regenerate Keys", use_container_width=True):
+            st.success("✅ Keys generated!")
     
     with col2:
-        st.write("**Public Key:**")
+        st.write("**Your Public Key:**")
         st.text_area(
-            "Your Public Key",
-            value="-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA...\n-----END PUBLIC KEY-----",
+            "Key",
+            value="-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A...\n-----END PUBLIC KEY-----",
             height=100,
-            disabled=True
+            disabled=True,
+            label_visibility="collapsed"
         )
     
     st.divider()
     
     st.write("**Peer's Public Key:**")
     peer_key = st.text_area(
-        "Paste peer's public key",
-        placeholder="-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----",
-        height=100
+        "Peer Key",
+        placeholder="Paste peer's public key",
+        height=100,
+        label_visibility="collapsed"
     )
     
-    if st.button("✅ Verify & Add Peer"):
-        if peer_key:
-            st.success("✅ Peer's public key verified and added!")
+    if st.button("✅ Verify & Add", use_container_width=True):
+        if peer_key and peer_key.strip():
+            st.success("✅ Peer verified!")
         else:
-            st.error("❌ Please paste a public key")
+            st.error("❌ No key provided")
     
     st.divider()
     
-    st.write("**Security Info:**")
     st.info("""
-    🔐 **AuraLink Security Features:**
-    - End-to-End Encryption (NaCl/libsodium)
-    - Public Key Infrastructure (PKI)
+    🔐 **AuraLink Security:**
+    - End-to-End Encryption
+    - Public Key Infrastructure
     - Perfect Forward Secrecy
-    - Message Authentication Codes
-    - Secure WebSocket (WSS) Support
+    - Message Authentication
+    - Secure WebSocket Support
     """)
 
 # Footer
 st.divider()
 st.markdown("""
 <div style='text-align: center; color: #999; padding: 20px;'>
-    <p><strong>AuraLink v1.0</strong> | Communication without barriers 🌍</p>
+    <p><strong>AuraLink v2.0</strong> | Communication without barriers 🌍</p>
     <p>Secure • Private • Decentralized</p>
 </div>
 """, unsafe_allow_html=True)
